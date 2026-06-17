@@ -1,0 +1,72 @@
+{
+  "name": "ERP Scheduled Extract → DB",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://example.local/erp/export/production.json",
+        "options": {}
+      },
+      "id": "read-source",
+      "name": "Read Source (ERP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "notes": "Replace URL with the real ERP export endpoint. Auth via n8n credentials."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize incoming records and compute a derived defect_rate.\nreturn items.map(item => {\n  const r = item.json;\n  const output = Number(r.output_units) || 0;\n  const defects = Number(r.defect_units) || 0;\n  return {\n    json: {\n      prod_date: r.prod_date,\n      product_line: String(r.product_line || '').trim(),\n      output_units: output,\n      defect_units: defects,\n      defect_rate: output > 0 ? +(defects / output).toFixed(4) : 0\n    }\n  };\n});"
+      },
+      "id": "transform",
+      "name": "Transform & Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "production",
+        "columns": "prod_date,product_line,output_units,defect_units",
+        "additionalFields": {}
+      },
+      "id": "upsert-db",
+      "name": "Upsert to DB",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [960, 300],
+      "notes": "Demo placeholder. Point at MySQL; credentials stored in n8n vault."
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{ "node": "Read Source (ERP)", "type": "main", "index": 0 }]]
+    },
+    "Read Source (ERP)": {
+      "main": [[{ "node": "Transform & Validate", "type": "main", "index": 0 }]]
+    },
+    "Transform & Validate": {
+      "main": [[{ "node": "Upsert to DB", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["demo", "erp", "automation"]
+}
